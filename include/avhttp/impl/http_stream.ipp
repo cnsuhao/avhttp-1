@@ -2708,7 +2708,7 @@ void http_stream::socks_proxy_handshake(Stream& sock, boost::system::error_code&
 	else if (s.type == proxy_settings::socks4)
 		bytes_to_read = 8;
 
-	BOOST_ASSERT(bytes_to_read == 0);
+	BOOST_ASSERT(bytes_to_read != 0);
 
 	m_response.consume(m_response.size());
 	boost::asio::read(sock, m_response,
@@ -2720,11 +2720,11 @@ void http_stream::socks_proxy_handshake(Stream& sock, boost::system::error_code&
 	int version = read_uint8(rp);
 	int response = read_uint8(rp);
 
-	if (version == 5)
+	if (s.type == proxy_settings::socks5 || s.type == proxy_settings::socks5_pw)
 	{
-		if (s.type != proxy_settings::socks5 && s.type != proxy_settings::socks5_pw)
+		if (version != 5)
 		{
-			// 请求的socks协议不是sock5.
+			// 请求的socks5协议但是实际上不是socks5？.
 			ec = errc::socks_unsupported_version;
 			return;
 		}
@@ -2784,7 +2784,7 @@ void http_stream::socks_proxy_handshake(Stream& sock, boost::system::error_code&
 			return;
 		}
 	}
-	else if (version == 4)
+	else if (s.type == proxy_settings::socks4)
 	{
 		// 90: request granted.
 		// 91: request rejected or failed.
@@ -2885,6 +2885,7 @@ void http_stream::handle_connect_socks(Stream& sock, Handler handler,
 
 	if (err)
 	{
+		endpoint_iterator++;
 		tcp::resolver::iterator end;
 		if (endpoint_iterator == end)
 		{
@@ -2895,7 +2896,6 @@ void http_stream::handle_connect_socks(Stream& sock, Handler handler,
 		}
 
 		// 继续尝试连接下一个IP.
-		endpoint_iterator++;
 		boost::asio::async_connect(sock.lowest_layer(), endpoint_iterator,
 			boost::bind(&http_stream::handle_connect_socks<Stream, Handler>,
 				this, boost::ref(sock), handler,
@@ -3461,6 +3461,7 @@ void http_stream::handle_connect_https_proxy(Stream& sock, Handler handler,
 {
 	if (err)
 	{
+		endpoint_iterator++;
 		tcp::resolver::iterator end;
 		if (endpoint_iterator == end)
 		{
@@ -3471,7 +3472,6 @@ void http_stream::handle_connect_https_proxy(Stream& sock, Handler handler,
 		}
 
 		// 继续尝试连接下一个IP.
-		endpoint_iterator++;
 		boost::asio::async_connect(sock.lowest_layer(), endpoint_iterator,
 			boost::bind(&http_stream::handle_connect_https_proxy<Stream, Handler>,
 				this, boost::ref(sock), handler,
